@@ -1,0 +1,43 @@
+
+```{r, echo = FALSE,warning= FALSE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+Baltimore <- read.csv("Baltimore_Part1_Crime_data.csv")
+
+```
+
+
+```{r}
+datetime <- ymd_hms(Baltimore$CrimeDateTime)
+
+Baltimore$year_value <- year(datetime)
+Baltimore$month_value <- month(datetime)
+Baltimore$day_value <- day(datetime)
+Baltimore$hour_value <- hour(datetime)
+Baltimore$minute_value <- minute(datetime)
+Baltimore$second_value <- second(datetime)
+
+time_2011 <- as.Date(Baltimore$CrimeDateTime[Baltimore$year_value>=2011])
+```
+
+```{r}
+cases_per_time <- aggregate(x = list(case_count = time_2011), by = list(date = time_2011), FUN = length)
+
+ggplot(cases_per_time, aes(x = date, y = case_count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Date", y = "Number of Cases", title = "Cases per Date")
+
+```
+
+```{r}
+time_2011_felony <- as.Date(Baltimore$CrimeDateTime[Baltimore$year_value>=2011 & !Baltimore$Description%in%c("COMMON ASSAULT","LARCENY","LARCENY FROM AUTO")])
+felony_per_time <- aggregate(x = list(case_count = time_2011_felony), by = list(date = time_2011_felony), FUN = length)
+
+ggplot(felony_per_time, aes(x = date, y = case_count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Date", y = "Number of Cases", title = "Cases per Date")
+
+```
