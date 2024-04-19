@@ -2,11 +2,199 @@
 ```{r, echo = FALSE,warning= FALSE}
 library(dplyr)
 library(ggplot2)
+library(stringr)
 library(lubridate)
 Baltimore <- read.csv("Baltimore_Part1_Crime_data.csv")
 
+library(ggplot2)
+library(png)
+library(grid)
+library(ggimage)
+library(magick)
+library(imager)
+library(SpatialPack)
+library(gganimate)
+library(plotly)
+
+
 ```
 
+```{r}
+easymap <- function(map_img_png,
+                    spatial_data,
+                    x,
+                    y,
+                    x_min,
+                    y_min,
+                    x_max,
+                    y_max,
+                    saturation = 100, 
+                    brightness = 100, 
+                    adjustmentMode = "axis",
+                    text_color="black",
+                    animate_var=NA,
+                    text_var=NA,
+                    transition_length,
+                    state_length,
+                    Image_type,#scatter, heatmap, contour, bar
+                    bar_width=3,
+                    low_color,
+                    high_color){
+  map_img <- image_read(map_img_png)
+  width <- image_info(map_img)$width
+  height <- image_info(map_img)$height
+  ratio <- (x_max-x_min)/(y_max-y_min)/(width/height)
+  
+  map_img <- image_modulate(map_img, saturation = saturation, brightness = brightness)
+  image_ratio <- 1
+  axis_ratio <- 1
+  if(adjustmentMode == "image"){
+    if (!adjustmentMode %in% c("image","axis")){
+      stop("adjustmentMode must be image or axis")
+    }
+    image_ratio <- ratio
+  }
+  else{
+    axis_ratio <- ratio
+  }
+  
+  map_img <- image_scale(map_img, geometry = paste0("x", 1/image_ratio * 100, "%"))
+  
+  if(!Image_type %in% c("scatter", "heatmap", "contour", "bar")){
+    stop("Image_type must be scatter, heatmap, contour, bar")
+  }
+  
+  if(Image_type == "scatter"){
+  if(is.na(animate_var)){
+  eval(parse(text = paste0("spatial_data$text_var <- spatial_data$",text_var)))
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+ 
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  geom_point()+
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')+
+  geom_text(data = spatial_data, aes(label = text_var), 
+            nudge_x = 0.5, nudge_y = 1.5, color = text_color)
+  }
+  
+  if(!is.na(animate_var)){
+  eval(parse(text = paste0("spatial_data$ani_var <- spatial_data$",animate_var)))
+  eval(parse(text = paste0("spatial_data$text_var <- spatial_data$",text_var)))
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+ 
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  geom_point()+
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')+
+  geom_text(data = spatial_data, aes(label = text_var), 
+            nudge_x = 0.5, nudge_y = 1.5, color = text_color)+ 
+  transition_states(ani_var, transition_length = transition_length, state_length = state_length)+
+  enter_fade() +
+  exit_fade()
+  }
+  }
+  
+  
+  
+  if(Image_type == "heatmap"){
+  if(is.na(animate_var)){
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  stat_density_2d(aes(alpha = ..density..,fill = ..density..), geom = "raster", contour = FALSE)+
+  scale_fill_gradient(low = low_color, high = high_color) +
+  scale_alpha(range = c(0.3, 0.75), guide = "none") +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')
+  }
+  
+  if(!is.na(animate_var)){
+  eval(parse(text = paste0("spatial_data$ani_var <- spatial_data$",animate_var)))
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  stat_density_2d(aes(alpha = ..density..,fill = ..density..), geom = "raster", contour = FALSE)+
+  scale_fill_gradient(low = low_color, high = high_color) +
+  scale_alpha(range = c(0.3, 0.75), guide = "none") +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')+
+  transition_states(ani_var, transition_length = transition_length, state_length = state_length)+
+  enter_fade() +
+  exit_fade()
+  }
+  }
+  
+  if(Image_type == "contour"){
+  if(is.na(animate_var)){
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  stat_density_2d(geom = "polygon", aes(alpha = ..level..,fill = ..level..))+
+  scale_fill_gradient(low = low_color, high = high_color) +
+  scale_alpha(range = c(0.3, 0.75), guide = "none") +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')
+  }
+  
+  if(!is.na(animate_var)){
+  eval(parse(text = paste0("spatial_data$ani_var <- spatial_data$",animate_var)))
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,"))")))
+  p <- p+
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  stat_density_2d(geom = "polygon", aes(alpha = ..level..,fill = ..level..))+
+  scale_fill_gradient(low = low_color, high = high_color) +
+  scale_alpha(range = c(0.3, 0.75), guide = "none") +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')+
+  transition_states(ani_var, transition_length = transition_length, state_length = state_length)+
+  enter_fade() +
+  exit_fade()
+  }
+  } 
+  if(Image_type == "bar"){
+  spatial_data$yend <- spatial_data$y+spatial_data$gdp
+  eval(parse(text = paste0("spatial_data$yend <- spatial_data$",y,"+spatial_data$",text_var)))  
+  if(is.na(animate_var)){
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,", xend = ",x,", yend = yend))")))
+  p <- p+
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  geom_segment(size = bar_width, lineend = "square",color = text_color) +
+  geom_text(aes(x = x, y = y, label = category,color = text_color), vjust = 1)+
+  scale_x_continuous(limits = c(x_min, x_max)) + 
+  scale_y_continuous(limits = c(y_min, y_max)) +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')
+  }
+  
+  if(!is.na(animate_var)){
+  eval(parse(text = paste0("spatial_data$ani_var <- spatial_data$",animate_var)))
+  eval(parse(text = paste0("p <- ggplot(data = spatial_data, aes(x = ",x,", y = ",y,", xend = ",x,", yend = yend))")))
+  p <- p+ 
+  annotation_custom(rasterGrob(map_img, interpolate=TRUE), xmin=x_min, xmax=x_max, ymin=y_min, ymax=y_max)+
+  geom_segment(size = bar_width, lineend = "square",color = text_color) +
+  geom_text(aes(x = x, y = y, label = category,color = text_color), vjust = 1)+
+  scale_x_continuous(limits = c(x_min, x_max)) + 
+  scale_y_continuous(limits = c(y_min, y_max)) +
+  coord_fixed(ratio = axis_ratio)+
+  theme_classic()+
+  labs(title = '  {closest_state}', x = '', y = '')+
+  transition_states(ani_var, transition_length = transition_length, state_length = state_length)+
+  enter_fade() +
+  exit_fade()
+  } 
+  }
+
+  return(p)
+  
+}
+```
 
 ```{r}
 datetime <- ymd_hms(Baltimore$CrimeDateTime)
@@ -19,9 +207,17 @@ Baltimore$minute_value <- minute(datetime)
 Baltimore$second_value <- second(datetime)
 
 time_2011 <- as.Date(Baltimore$CrimeDateTime[Baltimore$year_value>=2011])
+
+Baltimore <- Baltimore %>%
+  mutate(
+    GeoLocation = str_remove_all(GeoLocation, "[()]"),  
+    Latitude = as.numeric(str_split(GeoLocation, ",", simplify = TRUE)[, 1]),  
+    Longitude = as.numeric(str_split(GeoLocation, ",", simplify = TRUE)[, 2]) 
+  )
+
 ```
 
-```{r}
+```{r Cases per Date}
 cases_per_time <- aggregate(x = list(case_count = time_2011), by = list(date = time_2011), FUN = length)
 
 ggplot(cases_per_time, aes(x = date, y = case_count)) +
@@ -31,13 +227,100 @@ ggplot(cases_per_time, aes(x = date, y = case_count)) +
 
 ```
 
-```{r}
+```{r Felony cases per Date}
 time_2011_felony <- as.Date(Baltimore$CrimeDateTime[Baltimore$year_value>=2011 & !Baltimore$Description%in%c("COMMON ASSAULT","LARCENY","LARCENY FROM AUTO")])
 felony_per_time <- aggregate(x = list(case_count = time_2011_felony), by = list(date = time_2011_felony), FUN = length)
 
 ggplot(felony_per_time, aes(x = date, y = case_count)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   theme_minimal() +
-  labs(x = "Date", y = "Number of Cases", title = "Cases per Date")
+  labs(x = "Date", y = "Number of Cases", title = "Felony cases per Date")
 
+```
+```{r stacked bar plot: all case/felony}
+cases_per_time$case_count <- as.numeric(cases_per_time$case_count)
+
+
+monthly_average_case <- cases_per_time %>%
+  mutate(Month = floor_date(date, "month")) %>%
+  group_by(Month) %>%
+  summarize(Monthly_cases = mean(case_count))
+
+monthly_average_felony <- felony_per_time %>%
+  mutate(Month = floor_date(date, "month")) %>%
+  group_by(Month) %>%
+  summarize(Felonies = mean(case_count))
+
+
+df_merged <- merge(monthly_average_case, monthly_average_felony, by = "Month")
+df_merged$Non_Felonies <- df_merged$Monthly_cases - df_merged$Felonies
+df_long <- reshape2::melt(df_merged, id.vars = "Month", measure.vars = c("Non_Felonies","Felonies"))
+
+ggplot(data = df_long, aes(x = Month, y = value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Monthly Crime and Felony Counts", x = "Month", y = "Number of Crimes") +
+  scale_fill_brewer(palette = "Pastel1", name = "Crime Type") +
+  theme_minimal()
+
+ggsave("stack bar plot_all case_felony.pdf",width=14,height=6)
+```
+
+```{r felony rate}
+felony_rate <- data.frame(date=felony_per_time$date,felony_rate=felony_per_time$case_count/cases_per_time$case_count)[-4109,]
+
+monthly_average <- felony_rate %>%
+  mutate(Month = floor_date(date, "month")) %>%
+  group_by(Month) %>%
+  summarize(AverageCrimeRate = mean(felony_rate))
+
+ggplot(monthly_average, aes(x = Month, y = AverageCrimeRate)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Date", y = "Number of Cases", title = "Felony rate")
+
+ggplot(data = monthly_average, aes(x = Month, y = AverageCrimeRate)) +
+  geom_line(color = "steelblue") + 
+  geom_point() + 
+  labs(title = "Trend of Felony Rate Over Time", x = "Time", y = "Felony Rate (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank())
+ggsave("Felony Rate.pdf",width=12,height=3)
+```
+
+```{r map}
+Baltimore_map <- Baltimore %>%
+  filter(!is.na(Latitude), !is.na(Longitude),  
+         Latitude != 0, Longitude != 0)        
+Baltimore_map <- Baltimore_map %>%
+  filter(Latitude >= 39.197, Latitude <= 39.373,
+         Longitude >= -76.711, Longitude <= -76.529)
+Baltimore_map <- Baltimore_map %>%
+  filter(year_value >= 2011)
+
+max(Baltimore_map$Latitude)
+min(Baltimore_map$Latitude)
+max(Baltimore_map$Longitude)
+min(Baltimore_map$Longitude)
+```
+
+```{r easymap}
+p <- easymap(       map_img_png="baltimore map.png",
+                    spatial_data=Baltimore_map,
+                    x="Longitude",
+                    y="Latitude",
+                    x_min=-76.711,
+                    y_min=39.218,
+                    x_max=-76.529,
+                    y_max=39.373,
+                    animate_var = "year_value",
+                    adjustmentMode = "axis",
+                    transition_length=1,
+                    state_length=10,
+                    Image_type="contour",
+                    low_color="grey",
+                    high_color="orange")
+p
+anim <- animate(p, renderer = gifski_renderer())
+anim_save("baltimore crime.gif", animation = anim)
 ```
